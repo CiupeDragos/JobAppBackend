@@ -119,14 +119,14 @@ fun Route.deleteJobFromFavourites() {
 
 fun Route.getJobPosts() {
     get("/getJobPosts") {
-        val request = call.receiveOrNull<JobFilter>()
+        val request = call.parameters["jobFilter"]
 
         if(request == null) {
             call.respond(BadRequest, BasicApiResponse(false, "Bad request format"))
             return@get
         }
-
-        val jobs = findFilteredJobs(request)
+        val jobFilter = Gson().fromJson(request, JobFilter::class.java)
+        val jobs = findFilteredJobs(jobFilter)
         call.respond(OK, jobs)
     }
 }
