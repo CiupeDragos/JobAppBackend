@@ -38,9 +38,20 @@ suspend fun addUser(
     return users.insertOne(userToAdd).wasAcknowledged()
 }
 
-suspend fun addJobPost(jobPost: JobPost): Boolean {
-    val jobPostToAdd = jobPost.copy(jobID = UUID.randomUUID().toString())
-    val user = findUser(jobPost.jobCreatorUsername)!!
+suspend fun addJobPost(jobPost: JobPost, jobLogoImageName: String?): Boolean {
+
+    val jobPostToAdd: JobPost = if(jobLogoImageName != null) {
+        jobPost.copy(
+            jobTimestamp = System.currentTimeMillis(),
+            jobImageUrl = "/assets/$jobLogoImageName"
+        )
+    } else {
+        jobPost.copy(
+            jobTimestamp = System.currentTimeMillis()
+        )
+    }
+
+    val user = findUser(jobPost.jobCreatorUsername) ?: return false
     val modifiedPostedJobs = user.postedJobsIDs.toMutableList().apply { add(jobPostToAdd.jobID) }.toList()
     val modifiedUser = user.copy(postedJobsIDs = modifiedPostedJobs)
     users.replaceOneById(user.userID, modifiedUser)
@@ -78,11 +89,41 @@ suspend fun loginUser(username: String, password: String): Boolean {
     return checkHashForPassword(actualUserPassword, password)
 }
 
-suspend fun findFilteredJobs(jobFilter: JobFilter): List<JobPost> {
+suspend fun findFilteredJobs(jobFilter: JobFilter, searchQuery: String, requesterUsername: String): List<JobPost> {
+
+    val savedJobs = findUser(requesterUsername)!!.savedJobsIDs
+    //val lowercaseQuery = searchQuery.lowercase()
 
     return jobPosts.find(
+        JobPost::jobTitle regex (if(searchQuery.isEmpty()) "\\w*" else "\\w*$searchQuery\\w*"),
         JobPost::jobType regex (if(jobFilter.jobType != null) "${jobFilter.jobType}" else "\\w+"),
         JobPost::jobSalary gte (jobFilter.jobMinSalary ?: 0),
         JobPost::jobLocation regex (if(jobFilter.jobLocation != null) "\\w*${jobFilter.jobLocation}\\w*" else "\\w+")
-    ).toList()
+    ).toList().apply {
+        map { jobPost ->
+            jobPost.isAddedToFavourites = jobPost.jobID in savedJobs
+        }
+    }
+    /*
+    val jobPostList = jobPosts.find().toList()
+    jobPostList.filter { curJobPost ->
+        ((curJobPost.jobTitle.lowercase()).contains(lowercaseQuery)) &&
+        (curJobPost.jobType.contains((jobFilter.jobType ?: ""))) &&
+        (curJobPost.jobSalary >= (jobFilter.jobMinSalary ?: 0)) &&
+        (curJobPost.jobLocation.lowercase().contains((jobFilter.jobLocation?.lowercase() ?: "")))
+    }.map { curJobPost ->
+        curJobPost.isAddedToFavourites = curJobPost.jobID in savedJobs
+    }
+
+    return jobPostList
+    */
+}
+
+suspend fun getSavedJobs(accountUsername: String): List<JobPost> {
+    val savedJobsIDs =  findUser(accountUsername)?.savedJobsIDs ?: return listOf()
+    val savedJobsList = mutableListOf<JobPost>()
+    savedJobsIDs.forEach { jobID ->
+        findJobPost(jobID)?.also { savedJobsList.add(it) }
+    }
+    return savedJobsList
 }
