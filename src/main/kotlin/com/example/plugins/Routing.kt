@@ -13,5 +13,7 @@ fun Application.configureRouting() {
         addJobToFavourites()
         deleteJobFromFavourites()
         getJobPosts()
+        getSavedJobs()
+        getStaticContent()
     }
 }
