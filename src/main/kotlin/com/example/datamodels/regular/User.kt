@@ -9,5 +9,9 @@ data class User(
     val password: String,
     val postedJobsIDs: List<String>,
     val savedJobsIDs: List<String>,
-    val jobApplicationsIDs: List<String>
+    val jobApplicationsIDs: List<String>,
+    var realName: String = "",
+    var phoneNumber: String = "",
+    var email: String = "",
+    var profilePicUrl: String = ""
 )

@@ -3,6 +3,7 @@ package com.example.server
 import com.example.datamodels.regular.JobFilter
 import com.example.datamodels.regular.JobPost
 import com.example.datamodels.regular.User
+import com.example.other.Constants.ASSETS_FOLDER
 import com.example.security.checkHashForPassword
 import org.litote.kmongo.*
 import java.util.*
@@ -40,10 +41,24 @@ suspend fun addUser(
 
 suspend fun addJobPost(jobPost: JobPost, jobLogoImageName: String?): Boolean {
 
+    val oldJobPost = findJobPost(jobPost.jobID)
+    oldJobPost?.let {
+        var jobPostToAdd: JobPost?
+        jobLogoImageName?.let {
+            if(oldJobPost.jobImageUrl.isEmpty()) {
+                jobPostToAdd = jobPost.copy(
+                    jobImageUrl = "/$ASSETS_FOLDER/$jobLogoImageName"
+                )
+            }
+        }
+        jobPostToAdd = jobPost.copy()
+        return jobPosts.replaceOneById(oldJobPost.jobID, jobPostToAdd!!).wasAcknowledged()
+    }
+
     val jobPostToAdd: JobPost = if(jobLogoImageName != null) {
         jobPost.copy(
             jobTimestamp = System.currentTimeMillis(),
-            jobImageUrl = "/assets/$jobLogoImageName"
+            jobImageUrl = "/$ASSETS_FOLDER/$jobLogoImageName"
         )
     } else {
         jobPost.copy(
@@ -52,6 +67,7 @@ suspend fun addJobPost(jobPost: JobPost, jobLogoImageName: String?): Boolean {
     }
 
     val user = findUser(jobPost.jobCreatorUsername) ?: return false
+
     val modifiedPostedJobs = user.postedJobsIDs.toMutableList().apply { add(jobPostToAdd.jobID) }.toList()
     val modifiedUser = user.copy(postedJobsIDs = modifiedPostedJobs)
     users.replaceOneById(user.userID, modifiedUser)
@@ -89,6 +105,17 @@ suspend fun loginUser(username: String, password: String): Boolean {
     return checkHashForPassword(actualUserPassword, password)
 }
 
+suspend fun getPostedJobs(username: String): List<JobPost> {
+    val user = findUser(username) ?: return listOf()
+    val postedJobsList = mutableListOf<JobPost>()
+    user.postedJobsIDs.forEach {
+        findJobPost(it)?.let { jobPost ->
+            postedJobsList.add(jobPost)
+        }
+    }
+    return postedJobsList.toList()
+}
+
 suspend fun findFilteredJobs(jobFilter: JobFilter, searchQuery: String, requesterUsername: String): List<JobPost> {
 
     val savedJobs = findUser(requesterUsername)!!.savedJobsIDs
@@ -98,7 +125,8 @@ suspend fun findFilteredJobs(jobFilter: JobFilter, searchQuery: String, requeste
         JobPost::jobTitle regex (if(searchQuery.isEmpty()) "\\w*" else "\\w*$searchQuery\\w*"),
         JobPost::jobType regex (if(jobFilter.jobType != null) "${jobFilter.jobType}" else "\\w+"),
         JobPost::jobSalary gte (jobFilter.jobMinSalary ?: 0),
-        JobPost::jobLocation regex (if(jobFilter.jobLocation != null) "\\w*${jobFilter.jobLocation}\\w*" else "\\w+")
+        JobPost::jobLocation regex (if(jobFilter.jobLocation != null) "\\w*${jobFilter.jobLocation}\\w*" else "\\w+"),
+        JobPost::jobRemote regex (if(jobFilter.jobRemote != null) "${jobFilter.jobRemote}" else "\\w*")
     ).toList().apply {
         map { jobPost ->
             jobPost.isAddedToFavourites = jobPost.jobID in savedJobs

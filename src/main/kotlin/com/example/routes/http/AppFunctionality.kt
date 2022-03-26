@@ -2,12 +2,15 @@ package com.example.routes.http
 
 import com.example.datamodels.regular.JobFilter
 import com.example.datamodels.regular.JobPost
+import com.example.datamodels.requests.AccountDetailsRequest
 import com.example.datamodels.requests.FavouriteJobRequest
 import com.example.datamodels.responses.BasicApiResponse
+import com.example.other.Constants.ASSETS_FOLDER
 import com.example.server.*
 import com.google.gson.Gson
 import io.ktor.http.HttpStatusCode.Companion.BadRequest
 import io.ktor.http.HttpStatusCode.Companion.InternalServerError
+import io.ktor.http.HttpStatusCode.Companion.NotFound
 import io.ktor.http.HttpStatusCode.Companion.OK
 import io.ktor.http.content.*
 import io.ktor.server.application.*
@@ -150,6 +153,22 @@ fun Route.getJobPosts() {
     }
 }
 
+fun Route.getPostedJobs() {
+    get("/getPostedJobs") {
+        val username = call.parameters["accountUsername"]
+        if(username == null) {
+            call.respond(BadRequest, BasicApiResponse(false, "Bad request format"))
+            return@get
+        }
+        if(!checkIfUserExists(username)) {
+            call.respond(BadRequest, BasicApiResponse(false, "The user does not exist"))
+            return@get
+        }
+
+        call.respond(OK, getPostedJobs(username))
+    }
+}
+
 fun Route.getSavedJobs() {
     get("/getSavedJobs") {
         val username = call.parameters["accountUsername"]
@@ -165,8 +184,78 @@ fun Route.getSavedJobs() {
     }
 }
 
+fun Route.getAccountDetails() {
+    get("/getAccountDetails") {
+        val username = call.parameters["username"]
+        if(username == null) {
+            call.respond(BadRequest, BasicApiResponse(false, "Bad request format"))
+            return@get
+        }
+        if(!checkIfUserExists(username)) {
+            call.respond(NotFound, BasicApiResponse(false, "Username does not exist"))
+            return@get
+        }
+        val user = findUser(username)!!
+        val accountDetailsResponse = AccountDetailsRequest(
+            user.profilePicUrl,
+            username,
+            user.realName,
+            user.phoneNumber,
+            user.email
+        )
+        call.respond(OK, accountDetailsResponse)
+    }
+}
+
+fun Route.updateAccountDetails() {
+    post("/updateAccountDetails") {
+        val multipartRequest = call.receiveMultipart()
+        var accountRequest: AccountDetailsRequest? = null
+        var profilePicName: String? = null
+
+        multipartRequest.forEachPart { part ->
+            when(part)
+            {
+                is PartData.FormItem -> {
+                    accountRequest = Gson().fromJson(part.value, AccountDetailsRequest::class.java)
+                }
+                is PartData.FileItem -> {
+                    profilePicName = part.originalFileName
+                    val fileBytes = part.streamProvider().readBytes()
+                    File("uploads/$profilePicName").writeBytes(fileBytes)
+                }
+                else -> {}
+            }
+        }
+
+        if(accountRequest == null) {
+            call.respond(BadRequest, BasicApiResponse(false, "Bad request format"))
+            return@post
+        }
+        if(!checkIfUserExists(accountRequest!!.username)) {
+            call.respond(BadRequest, BasicApiResponse(false, "The username does not exist"))
+            return@post
+        }
+        if(profilePicName != null) {
+            val user = findUser(accountRequest!!.username)!!
+            val newUser = user.copy(profilePicUrl = "/$ASSETS_FOLDER/$profilePicName")
+            users.replaceOneById(user.userID, newUser)
+        }
+
+        val user = findUser(accountRequest!!.username)!!
+        val newUser = user.copy(
+            realName = accountRequest!!.realName,
+            email = accountRequest!!.email,
+            phoneNumber = accountRequest!!.phoneNumber
+        )
+        users.replaceOneById(user.userID, newUser)
+
+        call.respond(OK, BasicApiResponse(true, "Account details updated successfully"))
+    }
+}
+
 fun Route.getStaticContent() {
-    static("assets") {
+    static(ASSETS_FOLDER) {
         files("uploads")
     }
 }

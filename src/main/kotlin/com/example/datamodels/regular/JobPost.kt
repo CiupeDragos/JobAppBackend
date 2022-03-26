@@ -7,7 +7,7 @@ data class JobPost(
     val jobID: String,
     val jobCreatorUsername: String,
     val jobType: String,
-    val jobRemote: Boolean,
+    val jobRemote: String,
     val jobSalary: Int,
     val jobLocation: String,
     val jobTitle: String,

@@ -15,5 +15,8 @@ fun Application.configureRouting() {
         getJobPosts()
         getSavedJobs()
         getStaticContent()
+        getAccountDetails()
+        updateAccountDetails()
+        getPostedJobs()
     }
 }
