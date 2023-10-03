@@ -12,6 +12,7 @@ import io.ktor.client.statement.*
 import kotlin.test.*
 import io.ktor.server.testing.*
 import com.example.plugins.*
+import io.ktor.client.call.body
 
 class ApplicationTest {
     @Test
@@ -19,7 +20,9 @@ class ApplicationTest {
         application {
             configureRouting()
         }
-        client.get("/").apply {
+        client.get {
+            url("/")
+        }.body().apply {
             assertEquals(HttpStatusCode.OK, status)
             assertEquals("Hello World!", bodyAsText())
         }

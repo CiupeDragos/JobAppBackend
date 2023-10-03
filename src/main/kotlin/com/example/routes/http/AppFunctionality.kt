@@ -13,6 +13,7 @@ import io.ktor.http.HttpStatusCode.Companion.InternalServerError
 import io.ktor.http.HttpStatusCode.Companion.NotFound
 import io.ktor.http.HttpStatusCode.Companion.OK
 import io.ktor.http.content.*
+import io.ktor.server.http.content.*
 import io.ktor.server.application.*
 import io.ktor.server.http.content.*
 import io.ktor.server.request.*
@@ -30,19 +31,21 @@ fun Route.createJobPost() {
                 is PartData.FormItem -> {
                     jobPost = Gson().fromJson(part.value, JobPost::class.java)
                 }
+
                 is PartData.FileItem -> {
                     fileName = part.originalFileName
                     val fileBytes = part.streamProvider().readBytes()
                     File("uploads/$fileName").writeBytes(fileBytes)
                 }
+
                 else -> {}
             }
         }
-        if(jobPost == null) {
+        if (jobPost == null) {
             call.respond(BadRequest, BasicApiResponse(false, "Bad request format"))
             return@post
         }
-        if(!addJobPost(jobPost!!, fileName)) {
+        if (!addJobPost(jobPost!!, fileName)) {
             call.respond(OK, BasicApiResponse(false, "Could not add the job"))
             return@post
         }
@@ -54,24 +57,24 @@ fun Route.deleteJobPost() {
     post("/deleteJobPost") {
         val jobID = call.parameters["jobID"]
         val username = call.parameters["username"]
-        if(jobID == null || username == null) {
+        if (jobID == null || username == null) {
             call.respond(BadRequest, BasicApiResponse(false, "Bad request format"))
             return@post
         }
-        if(!checkIfUserExists(username)) {
+        if (!checkIfUserExists(username)) {
             call.respond(BadRequest, BasicApiResponse(false, "The username trying to delete this job doesn't exist"))
             return@post
         }
         val job = findJobPost(jobID)
-        if(job == null) {
+        if (job == null) {
             call.respond(BadRequest, BasicApiResponse(false, "The job you are trying to delete does not exist"))
             return@post
         }
-        if(job.jobCreatorUsername != username) {
+        if (job.jobCreatorUsername != username) {
             call.respond(BadRequest, BasicApiResponse(false, "You did not create this job"))
             return@post
         }
-        if(deleteJobPost(jobID, username)) {
+        if (deleteJobPost(jobID, username)) {
             call.respond(OK, BasicApiResponse(true, "The job was deleted successfully"))
         } else {
             call.respond(InternalServerError, BasicApiResponse(false, "An unknown error has occurred"))
@@ -80,23 +83,28 @@ fun Route.deleteJobPost() {
 }
 
 
-
 fun Route.addJobToFavourites() {
     post("/addJobToFavourites") {
         val request = call.receiveOrNull<FavouriteJobRequest>()
-        if(request == null) {
+        if (request == null) {
             call.respond(BadRequest, BasicApiResponse(false, "Bad request format"))
             return@post
         }
-        if(!checkIfUserExists(request.accountUsername)) {
-            call.respond(BadRequest, BasicApiResponse(false, "The username trying to add this job to favourites does not exist"))
+        if (!checkIfUserExists(request.accountUsername)) {
+            call.respond(
+                BadRequest,
+                BasicApiResponse(false, "The username trying to add this job to favourites does not exist")
+            )
             return@post
         }
-        if(!checkIfJobExists(request.jobID)) {
-            call.respond(BadRequest, BasicApiResponse(false, "The job you are trying to add to favourites,does not exist"))
+        if (!checkIfJobExists(request.jobID)) {
+            call.respond(
+                BadRequest,
+                BasicApiResponse(false, "The job you are trying to add to favourites,does not exist")
+            )
             return@post
         }
-        if(request.jobID in findUser(request.accountUsername)!!.savedJobsIDs) {
+        if (request.jobID in findUser(request.accountUsername)!!.savedJobsIDs) {
             call.respond(OK, BasicApiResponse(false, "You already saved this job"))
         } else {
             saveJobPost(request.jobID, request.accountUsername)
@@ -108,20 +116,26 @@ fun Route.addJobToFavourites() {
 fun Route.deleteJobFromFavourites() {
     post("/deleteJobFromFavourites") {
         val request = call.receiveOrNull<FavouriteJobRequest>()
-        if(request == null) {
+        if (request == null) {
             call.respond(BadRequest, BasicApiResponse(false, "Bad request format"))
             return@post
         }
-        if(!checkIfUserExists(request.accountUsername)) {
-            call.respond(BadRequest, BasicApiResponse(false, "The username trying to remove this job from favourites does not exist"))
+        if (!checkIfUserExists(request.accountUsername)) {
+            call.respond(
+                BadRequest,
+                BasicApiResponse(false, "The username trying to remove this job from favourites does not exist")
+            )
             return@post
         }
-        if(!checkIfJobExists(request.jobID)) {
-            call.respond(BadRequest, BasicApiResponse(false, "The job you are trying to remove from favourites does not exist"))
+        if (!checkIfJobExists(request.jobID)) {
+            call.respond(
+                BadRequest,
+                BasicApiResponse(false, "The job you are trying to remove from favourites does not exist")
+            )
             return@post
         }
         val user = findUser(request.accountUsername)!!
-        if(request.jobID !in user.savedJobsIDs) {
+        if (request.jobID !in user.savedJobsIDs) {
             call.respond(OK, BasicApiResponse(false, "You don't have this job saved"))
         } else {
             val modifiedSaveJobsList = user.savedJobsIDs.toMutableList().apply { remove(request.jobID) }.toList()
@@ -137,12 +151,12 @@ fun Route.getJobPosts() {
         val searchQuery = call.parameters["searchQuery"]
         val requesterUsername = call.parameters["requesterUsername"]
 
-        if(filters == null || searchQuery == null) {
+        if (filters == null || searchQuery == null) {
             call.respond(BadRequest, BasicApiResponse(false, "Bad request format"))
             return@get
         }
 
-        if(requesterUsername == null) {
+        if (requesterUsername == null) {
             call.respond(BadRequest, BasicApiResponse(false, "The user trying to get the jobs does not exist"))
             return@get
         }
@@ -156,11 +170,11 @@ fun Route.getJobPosts() {
 fun Route.getPostedJobs() {
     get("/getPostedJobs") {
         val username = call.parameters["accountUsername"]
-        if(username == null) {
+        if (username == null) {
             call.respond(BadRequest, BasicApiResponse(false, "Bad request format"))
             return@get
         }
-        if(!checkIfUserExists(username)) {
+        if (!checkIfUserExists(username)) {
             call.respond(BadRequest, BasicApiResponse(false, "The user does not exist"))
             return@get
         }
@@ -172,11 +186,11 @@ fun Route.getPostedJobs() {
 fun Route.getSavedJobs() {
     get("/getSavedJobs") {
         val username = call.parameters["accountUsername"]
-        if(username == null){
+        if (username == null) {
             call.respond(BadRequest, BasicApiResponse(false, "Bad request format"))
             return@get
         }
-        if(!checkIfUserExists(username)) {
+        if (!checkIfUserExists(username)) {
             call.respond(BadRequest, BasicApiResponse(false, "The user does not exist"))
             return@get
         }
@@ -187,11 +201,11 @@ fun Route.getSavedJobs() {
 fun Route.getAccountDetails() {
     get("/getAccountDetails") {
         val username = call.parameters["username"]
-        if(username == null) {
+        if (username == null) {
             call.respond(BadRequest, BasicApiResponse(false, "Bad request format"))
             return@get
         }
-        if(!checkIfUserExists(username)) {
+        if (!checkIfUserExists(username)) {
             call.respond(NotFound, BasicApiResponse(false, "Username does not exist"))
             return@get
         }
@@ -214,29 +228,30 @@ fun Route.updateAccountDetails() {
         var profilePicName: String? = null
 
         multipartRequest.forEachPart { part ->
-            when(part)
-            {
+            when (part) {
                 is PartData.FormItem -> {
                     accountRequest = Gson().fromJson(part.value, AccountDetailsRequest::class.java)
                 }
+
                 is PartData.FileItem -> {
                     profilePicName = part.originalFileName
                     val fileBytes = part.streamProvider().readBytes()
                     File("uploads/$profilePicName").writeBytes(fileBytes)
                 }
+
                 else -> {}
             }
         }
 
-        if(accountRequest == null) {
+        if (accountRequest == null) {
             call.respond(BadRequest, BasicApiResponse(false, "Bad request format"))
             return@post
         }
-        if(!checkIfUserExists(accountRequest!!.username)) {
+        if (!checkIfUserExists(accountRequest!!.username)) {
             call.respond(BadRequest, BasicApiResponse(false, "The username does not exist"))
             return@post
         }
-        if(profilePicName != null) {
+        if (profilePicName != null) {
             val user = findUser(accountRequest!!.username)!!
             val newUser = user.copy(profilePicUrl = "/$ASSETS_FOLDER/$profilePicName")
             users.replaceOneById(user.userID, newUser)
